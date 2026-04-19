@@ -1016,6 +1016,13 @@ def gui_main() -> int:
             self.update_mode_labels()
 
         # ----------------------- general UI helper methods ----------------------- #
+        def build_worker_command(self, extra_args: list[str]) -> tuple[str, list[str]]:
+            if getattr(sys, "frozen", False):
+                # Frozen PyInstaller app: launch the exe itself directly.
+                return sys.executable, extra_args
+            # Normal .py run: launch the Python interpreter with this script path.
+            return sys.executable, [str(Path(__file__).resolve()), *extra_args]
+
         def append_log(self, text: str) -> None:
             self.log_box.appendPlainText(text)
             self.log_box.verticalScrollBar().setValue(self.log_box.verticalScrollBar().maximum())
@@ -1223,8 +1230,7 @@ def gui_main() -> int:
             self.stop_btn.setEnabled(True)
             self.elapsed_timer.start(100)
 
-            args = [
-                str(Path(__file__).resolve()),
+            worker_args = [
                 "--worker",
                 "--dataset-dir",
                 dataset_dir,
@@ -1244,15 +1250,22 @@ def gui_main() -> int:
                 str(self.seed_spin.value()),
             ]
             if self.force_cpu_checkbox.isChecked():
-                args.append("--force-cpu")
+                worker_args.append("--force-cpu")
             if self.early_stopping_checkbox.isChecked():
-                args.extend(["--use-early-stopping", "--early-stopping-patience", str(self.early_stop_patience_spin.value())])
+                worker_args.extend([
+                    "--use-early-stopping",
+                    "--early-stopping-patience",
+                    str(self.early_stop_patience_spin.value()),
+                ])
             if self.live_demo_checkbox.isChecked():
-                args.append("--live-demo-mode")
+                worker_args.append("--live-demo-mode")
+
+            program, args = self.build_worker_command(worker_args)
 
             self.append_log("Launching worker process...")
-            self.append_log("Command: " + " ".join(args))
-            self.process.start(sys.executable, args)
+            self.append_log("Program: " + program)
+            self.append_log("Args: " + " ".join(args))
+            self.process.start(program, args)
             self.mode_label.setText("Live Demo" if self.live_demo_checkbox.isChecked() else "Benchmark")
 
         def start_test_evaluation(self) -> None:
@@ -1656,3 +1669,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
